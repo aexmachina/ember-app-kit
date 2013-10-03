@@ -1,6 +1,7 @@
 var lockFile = require('lockfile'),
     fs = require('fs'),
-    url = require('url');
+    url = require('url'),
+    Helpers = require('../helpers');
 
 module.exports = {
   server: {
@@ -27,7 +28,7 @@ module.exports = {
 // works with tasks/locking.js
 function lock(req, res, next) {
   (function retry() {
-    if (lockFile.checkSync('connect.lock')) {
+    if (lockFile.checkSync('tmp/connect.lock')) {
       setTimeout(retry, 30);
     } else {
       next();
@@ -35,28 +36,44 @@ function lock(req, res, next) {
   }());
 }
 
+function wildcardResponseIsValid(request) {
+  var urlSegments = request.url.split('.'),
+      extension   = urlSegments[urlSegments.length-1];
+  return (
+    ['GET', 'HEAD'].indexOf(request.method.toUpperCase()) > -1 &&
+    (urlSegments.length === 1 || extension.indexOf('htm') === 0 || extension.length > 5)
+  );
+}
+
 function buildWildcardMiddleware(options) {
-  return function(req, res, next) {
-    if ('GET' != req.method.toUpperCase() && 'HEAD' != req.method.toUpperCase()) { return next();  }
+  return function(request, response, next) {
+    if (!wildcardResponseIsValid(request)) { return next(); }
 
     var wildcard     = (options.wildcard || 'index.html'),
         wildcardPath = options.base + "/" + wildcard;
 
     fs.readFile(wildcardPath, function(err, data){
-      if (err) { return next('ENOENT' == err.code ? null : err); }
+      if (err) { return next('ENOENT' === err.code ? null : err); }
 
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(data);
+      response.writeHead(200, { 'Content-Type': 'text/html' });
+      response.end(data);
     });
-  }
+  };
 }
 
 function middleware(connect, options) {
-  return [
+  var result = [
     lock,
     connect['static'](options.base),
     connect.directory(options.base),
     // Remove this middleware to disable catch-all routing.
     buildWildcardMiddleware(options)
   ];
+
+  // Add livereload middlware after lock middleware if enabled
+  if (Helpers.isPackageAvailable("connect-livereload")) {
+    result.splice(1,0, require("connect-livereload")());
+  }
+
+  return result;
 }
