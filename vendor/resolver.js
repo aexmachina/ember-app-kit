@@ -1,6 +1,6 @@
 define("resolver",
-  [],
-  function() {
+  ["exports"],
+  function(__exports__) {
     "use strict";
   /*
    * This module defines a subclass of Ember.DefaultResolver that adds two
@@ -78,11 +78,11 @@ define("resolver",
 
     if (parsedName.fullName === 'router:main') {
       // for now, lets keep the router at app/router.js
-      return require(prefix + '/router');
+      return require(prefix + '/router')['default'];
     }
 
     if (requirejs._eak_seen[normalizedModuleName]) {
-      var module = require(normalizedModuleName, null, null, true /* force sync */);
+      var module = require(normalizedModuleName, null, null, true /* force sync */)['default'];
 
       if (module === undefined) {
         throw new Error(" Expected to find: '" + parsedName.fullName + "' within '" + normalizedModuleName + "' but got 'undefined'. Did you forget to `export default` within '" + normalizedModuleName + "'?");
@@ -115,5 +115,5 @@ define("resolver",
     }
   });
 
-  return Resolver;
+  __exports__.default = Resolver;
 });
